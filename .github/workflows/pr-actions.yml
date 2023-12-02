@@ -37,7 +37,7 @@ jobs:
       - name: 'Fail if not exactly one version label'
         id: check
         run: |
-            LABELS="${{ github.event.pull_request.labels.*.name }}"
+            LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
             VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
             LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
             if [[ "$LABELS_COUNT" -ne 1 ]]; then
