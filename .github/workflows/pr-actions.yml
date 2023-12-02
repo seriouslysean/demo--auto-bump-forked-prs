@@ -1,0 +1,44 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Checks if the PR is in draft status and fails if so, which does 2 things:
+  #  - Prevents the PR from being merged in that state
+  #  - Prevents all downstream jobs from running
+  # Additionally, require each test to pass before running the next to prevent
+  # running unnecessary jobs if any upstream jobs already failed
+  draft:
+    name: 'Check Draft Status'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Fail draft PRs'
+        if: github.event.pull_request.draft == true
+        run: |
+          echo "Skipping execution for draft PR"
+          exit 1
+
+  check-label:
+    name: 'Check Label Existence'
+    needs: draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Fail if no labels'
+        run: |
+          LABEL_COUNT=${{ github.event.pull_request.labels.*.name }}
+          if [ -z "$LABEL_COUNT" ]; then
+            echo "No labels found on the PR. Please add at least one label."
+            exit 1
+          fi
