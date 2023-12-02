@@ -35,10 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Fail if not exactly one version label'
+        id: check
         run: |
-            LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}')
-            VERSION_LABELS=$(echo "$LABELS" | grep -E '^version:(patch|minor|major)$' || true)
-            LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -l)
+            LABELS="${{ github.event.pull_request.labels.*.name }}"
+            VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
+            LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
             if [[ "$LABELS_COUNT" -ne 1 ]]; then
                 echo "Exactly one version label is required. Found $LABELS_COUNT labels. Exiting."
                 exit 1
