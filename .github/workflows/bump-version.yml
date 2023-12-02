@@ -59,7 +59,7 @@ jobs:
               echo "Exactly one version label is required. Exiting."
               exit 1
           fi
-          echo "version=$(echo "$VERSION_LABELS" | sed 's/^version-//')" >> $GITHUB_OUTPUT
+          echo "version=$(echo "$VERSION_LABELS" | sed 's/^version://')" >> $GITHUB_OUTPUT
         shell: bash
 
   bump-and-push-version:
