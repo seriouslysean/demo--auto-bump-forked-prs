@@ -1,0 +1,19 @@
+{
+  "name": "demo--auto-bump-forked-prs",
+  "version": "1.0.0",
+  "description": "Trying to figure out how to auto bump a repo's version from a forked PR merge event to main.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/seriouslysean/demo--auto-bump-forked-prs.git"
+  },
+  "author": "Sean Kennedy <sean@codeserious.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/seriouslysean/demo--auto-bump-forked-prs/issues"
+  },
+  "homepage": "https://github.com/seriouslysean/demo--auto-bump-forked-prs#readme"
+}
