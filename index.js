@@ -1,2 +1,2 @@
-const COUNT = 5;
+const COUNT = 6;
 console.log(COUNT);
