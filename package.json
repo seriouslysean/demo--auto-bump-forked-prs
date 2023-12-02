@@ -1,6 +1,6 @@
 {
   "name": "demo--auto-bump-forked-prs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Trying to figure out how to auto bump a repo's version from a forked PR merge event to main.",
   "main": "index.js",
   "scripts": {
