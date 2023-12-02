@@ -31,14 +31,14 @@ jobs:
           exit 1
 
   check-label:
-    name: 'Check Label Existence'
+    name: 'Check Labels'
     needs: draft
     runs-on: ubuntu-latest
     steps:
-      - name: 'Fail if no labels'
+      - name: 'Fail if no version label'
         run: |
-          LABEL_COUNT=${{ github.event.pull_request.labels.*.name }}
-          if [ -z "$LABEL_COUNT" ]; then
-            echo "No labels found on the PR. Please add at least one label."
-            exit 1
-          fi
+            LABEL_NAME=${{ github.event.pull_request.labels.*.name }}
+                if [[ "$LABEL_NAME" != "version:major" && "$LABEL_NAME" != "version:minor" && "$LABEL_NAME" != "version:patch" ]]; then
+                    echo "No version label found on the PR. Please add a version label (version:major, version:minor, version:patch)."
+                exit 1
+            fi
