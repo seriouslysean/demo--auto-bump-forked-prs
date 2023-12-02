@@ -60,20 +60,21 @@ jobs:
                 response=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+                echo "Artifacts: $response"
                 if echo "$response" | grep -q "$artifact_name"
                 then
-                echo "Artifact $artifact_name is available"
-                break
+                    echo "Artifact $artifact_name is available"
+                    break
                 else
-                echo "Artifact $artifact_name is not available yet"
-                if [ "$attempt_number" -eq "$max_attempts" ]
-                then
-                    echo "Artifact $artifact_name is not available after $max_attempts attempts"
-                    exit 1
-                fi
-                attempt_number=$((attempt_number+1))
-                echo "Waiting before retrying..."
-                sleep 15
+                    echo "Artifact $artifact_name is not available yet"
+                    if [ "$attempt_number" -eq "$max_attempts" ]
+                    then
+                        echo "Artifact $artifact_name is not available after $max_attempts attempts"
+                        exit 1
+                    fi
+                    attempt_number=$((attempt_number+1))
+                    echo "Waiting before retrying..."
+                    sleep 15
                 fi
             done
-            shell: bash
+        shell: bash
