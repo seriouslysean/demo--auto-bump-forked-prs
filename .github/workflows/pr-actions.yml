@@ -37,8 +37,10 @@ jobs:
     steps:
       - name: 'Fail if no version label'
         run: |
-            LABEL_NAME=${{ github.event.pull_request.labels.*.name }}
-                if [[ "$LABEL_NAME" != "version:major" && "$LABEL_NAME" != "version:minor" && "$LABEL_NAME" != "version:patch" ]]; then
-                    echo "No version label found on the PR. Please add a version label (version:major, version:minor, version:patch)."
+            LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}')
+            VERSION_LABELS=$(echo "$LABELS" | grep -E '^version:(patch|minor|major)$' || true)
+            if [[ $(echo "$VERSION_LABELS" | wc -l) -ne 1 ]]; then
+                echo "Exactly one version label is required. Exiting."
                 exit 1
             fi
+        shell: bash
