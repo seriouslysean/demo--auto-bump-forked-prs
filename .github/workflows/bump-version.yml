@@ -1,73 +1,63 @@
 name: Bump Version
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
+  workflow_run:
+    workflows: ["Prepare Version Bump"]
+    types:
+      - completed
 
 jobs:
+  check-previous-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if previous workflow was successful
+        run: |
+          if [[ "${{ github.event.workflow_run.conclusion }}" != "success" ]]; then
+            echo "Previous workflow was not successful." >> $GITHUB_STEP_SUMMARY
+            echo "outcome=Previous workflow was not successful." >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        shell: bash
+
   check-token:
     runs-on: ubuntu-latest
-    outputs:
-      hasToken: ${{ steps.check.outputs.hasToken }}
     steps:
       - name: Check PAT
-        id: check
-        # https://github.blog/2022-05-09-supercharging-github-actions-with-job-summaries/
         run: |
           if [[ -z "${{ secrets.PAT }}" ]]; then
             echo "PAT is not set." >> $GITHUB_STEP_SUMMARY
-            echo "This workflow requires the PAT secret to push commits and create releases. Please add the secret to your repository." >> $GITHUB_STEP_SUMMARY
-            echo "hasToken=false" >> $GITHUB_OUTPUT
+            echo "outcome=PAT is not set." >> $GITHUB_OUTPUT
+            exit 1
           else
             echo "PAT is set." >> $GITHUB_STEP_SUMMARY
-            echo "hasToken=true" >> $GITHUB_OUTPUT
+            echo "outcome=PAT is set." >> $GITHUB_OUTPUT
           fi
         shell: bash
 
-  check-merged:
-    needs: check-token
-    if: needs.check-token.outputs.hasToken == 'true'
+  download-artifact:
+    needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
-    outputs:
-      merged: ${{ steps.check.outputs.merged }}
     steps:
-      - name: Check if PR is merged
-        id: check
+      - name: Download version artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: version-${{ github.event.workflow_run.id }}
+          path: .
+      - name: Check if version.txt exists
         run: |
-          if [[ "${{ github.event.pull_request.merged }}" != "true" ]]; then
-            echo "Pull request is not merged. Exiting."
+          if [[ ! -f version.txt ]]; then
+            echo "version.txt does not exist." >> $GITHUB_STEP_SUMMARY
+            echo "outcome=version.txt does not exist." >> $GITHUB_OUTPUT
             exit 1
+          else
+            echo "version.txt exists." >> $GITHUB_STEP_SUMMARY
+            echo "outcome=version.txt exists." >> $GITHUB_OUTPUT
           fi
-          echo "merged=${{ github.event.pull_request.merged }}" >> $GITHUB_OUTPUT
-        shell: bash
-
-  get-labels:
-    needs: [check-token, check-merged]
-    if: needs.check-token.outputs.hasToken == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get.outputs.version }}
-    steps:
-      - name: Get labels
-        id: get
-        run: |
-          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
-          VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
-          LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
-          if [[ "$LABELS_COUNT" -ne 1 ]]; then
-              echo "Exactly one version label is required. Exiting."
-              exit 1
-          fi
-          echo "version=$(echo "$VERSION_LABELS" | sed 's/^version://')" >> $GITHUB_OUTPUT
         shell: bash
 
   bump-and-push-version:
-    needs: [check-token, get-labels]
-    if: needs.check-token.outputs.hasToken == 'true'
+    needs: [check-token, download-artifact]
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
@@ -85,7 +75,8 @@ jobs:
       - name: Bump Version
         id: bump
         run: |
-          npm version ${{ needs.get-labels.outputs.version }} --no-git-tag-version
+          VERSION_TYPE=$(cat version.txt)
+          npm version $VERSION_TYPE --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
@@ -96,22 +87,7 @@ jobs:
       - name: Push changes
         run: |
           git push origin main
-          git tag v$VERSION
-          git push origin v$VERSION
+          git tag v${{ steps.bump.outputs.version }}
+          git push origin v${{ steps.bump.outputs.version }}
         env:
           PAT: ${{ secrets.PAT }}
-
-  create-release:
-    needs: [check-token, bump-and-push-version]
-    if: needs.check-token.outputs.hasToken == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ needs.bump-and-push-version.outputs.version }}
-          name: ${{ needs.bump-and-push-version.outputs.version }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
