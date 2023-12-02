@@ -48,3 +48,32 @@ jobs:
         with:
           name: version-${{ github.run_id }}
           path: version.txt
+
+      - name: Wait for artifact to be available
+        run: |
+            attempt_number=1
+            max_attempts=10
+            artifact_name="version-${{ github.run_id }}"
+            while [ "$attempt_number" -le "$max_attempts" ]
+            do
+                echo "Attempt $attempt_number of $max_attempts"
+                response=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+                if echo "$response" | grep -q "$artifact_name"
+                then
+                echo "Artifact $artifact_name is available"
+                break
+                else
+                echo "Artifact $artifact_name is not available yet"
+                if [ "$attempt_number" -eq "$max_attempts" ]
+                then
+                    echo "Artifact $artifact_name is not available after $max_attempts attempts"
+                    exit 1
+                fi
+                attempt_number=$((attempt_number+1))
+                echo "Waiting before retrying..."
+                sleep 15
+                fi
+            done
+            shell: bash
