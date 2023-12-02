@@ -46,7 +46,7 @@ jobs:
 
           VERSION_TYPE=$(echo "$VERSION_LABELS" | sed 's/^version://')
           echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
-          echo "version=$VERSION_TYPE" > version.txt
+          echo "$VERSION_TYPE" > version.txt
 
           echo "### ✅ Valid Version Label" >> $GITHUB_STEP_SUMMARY
           echo "Version label is valid. Version type: $VERSION_TYPE."
