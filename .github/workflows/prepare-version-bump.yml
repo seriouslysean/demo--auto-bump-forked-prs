@@ -1,80 +1,89 @@
 name: Prepare Version Bump
-
-on:
+'on':
   pull_request:
-    types: [closed]
-    branches: [main]
-
+    types:
+      - closed
+    branches:
+      - main
 jobs:
   check-merged:
     runs-on: ubuntu-latest
     outputs:
-      merged: ${{ steps.check.outputs.merged }}
+      merged: '${{ steps.check.outputs.merged }}'
     steps:
       - name: Check if PR is merged
         id: check
-        run: |
+        run: >
           if [[ "${{ github.event.pull_request.merged }}" != "true" ]]; then
             echo "Pull request is not merged. Exiting."
             echo "Outcome=Pull request is not merged." >> $GITHUB_OUTPUT
             exit 1
           fi
-          echo "merged=${{ github.event.pull_request.merged }}" >> $GITHUB_OUTPUT
+
+          echo "merged=${{ github.event.pull_request.merged }}" >>
+          $GITHUB_OUTPUT
+
           echo "Outcome=Pull request is merged." >> $GITHUB_OUTPUT
         shell: bash
-
   get-labels:
     needs: check-merged
     runs-on: ubuntu-latest
     steps:
       - name: Get labels
         id: get
-        run: |
+        run: >
           LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
-          VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
+
+          VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E
+          '^version:(patch|minor|major)$' || true)
+
           LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
+
           if [[ "$LABELS_COUNT" -ne 1 ]]; then
               echo "Exactly one version label is required. Exiting."
               echo "Outcome=Exactly one version label is required." >> $GITHUB_OUTPUT
               exit 1
           fi
-          VERSION_TYPE=$(echo "$VERSION_LABELS" | sed 's/^version://')
-          echo "version=$VERSION_TYPE" > version.txt
-          echo "Outcome=Version label is valid. Version type: $VERSION_TYPE." >> $GITHUB_OUTPUT
-        shell: bash
 
+          VERSION_TYPE=$(echo "$VERSION_LABELS" | sed 's/^version://')
+
+          echo "version=$VERSION_TYPE" > version.txt
+
+          echo "Outcome=Version label is valid. Version type: $VERSION_TYPE." >>
+          $GITHUB_OUTPUT
+        shell: bash
       - name: Archive version
         uses: actions/upload-artifact@v2
         with:
-          name: version-${{ github.run_id }}
+          name: 'version-${{ github.run_id }}'
           path: version.txt
-
       - name: Wait for artifact to be available
         run: |
-            attempt_number=1
-            max_attempts=10
-            artifact_name="version-${{ github.run_id }}"
-            while [ "$attempt_number" -le "$max_attempts" ]
-            do
-                echo "Attempt $attempt_number of $max_attempts"
-                response=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                    -H "Accept: application/vnd.github.v3+json" \
-                    "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
-                echo "Artifacts: $response"
-                if echo "$response" | grep -q "$artifact_name"
-                then
-                    echo "Artifact $artifact_name is available"
-                    break
-                else
-                    echo "Artifact $artifact_name is not available yet"
-                    if [ "$attempt_number" -eq "$max_attempts" ]
-                    then
-                        echo "Artifact $artifact_name is not available after $max_attempts attempts"
-                        exit 1
-                    fi
-                    attempt_number=$((attempt_number+1))
-                    echo "Waiting before retrying..."
-                    sleep 15
-                fi
-            done
+          attempt_number=1
+          max_attempts=15
+          artifact_name="version-${{ github.run_id }}"
+          while [ "$attempt_number" -le "$max_attempts" ]
+          do
+              echo "Attempt $attempt_number of $max_attempts"
+              response=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+              artifact_names=$(echo "$response" | jq -r '.artifacts[].name')
+              echo "Artifacts: $artifact_names"
+              if echo "$artifact_names" | grep -q "$artifact_name"
+              then
+              echo "Artifact $artifact_name is available"
+              break
+              else
+              echo "Artifact $artifact_name is not available yet"
+              if [ "$attempt_number" -eq "$max_attempts" ]
+              then
+                  echo "Artifact $artifact_name is not available after $max_attempts attempts"
+                  exit 1
+              fi
+              attempt_number=$((attempt_number+1))
+              echo "Waiting before retrying..."
+              sleep 30
+              fi
+          done
         shell: bash
