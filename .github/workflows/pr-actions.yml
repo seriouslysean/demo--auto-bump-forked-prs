@@ -30,15 +30,17 @@ jobs:
           echo "Skipping execution for draft PR"
           exit 1
 
-  check-label:
-    name: 'Check Label Existence'
-    needs: draft
+  check-version-label:
+    name: 'Check Version Label'
     runs-on: ubuntu-latest
     steps:
-      - name: 'Fail if no labels'
+      - name: 'Fail if not exactly one version label'
         run: |
-          LABEL_COUNT=${{ github.event.pull_request.labels.*.name }}
-          if [ -z "$LABEL_COUNT" ]; then
-            echo "No labels found on the PR. Please add at least one label."
-            exit 1
-          fi
+            LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}')
+            VERSION_LABELS=$(echo "$LABELS" | grep -E '^version:(patch|minor|major)$' || true)
+            LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -l)
+            if [[ "$LABELS_COUNT" -ne 1 ]]; then
+                echo "Exactly one version label is required. Found $LABELS_COUNT labels. Exiting."
+                exit 1
+            fi
+        shell: bash
