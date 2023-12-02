@@ -99,21 +99,32 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
 
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
       - name: Bump Version, create tag and commit
         id: bump_version
         run: |
           BUMP_TYPE=${{ needs.download-artifact.outputs.BUMP_TYPE }}
           echo "Current BUMP_TYPE: $BUMP_TYPE"
-          npm version "$BUMP_TYPE"
+          npm version "$BUMP_TYPE" --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
-          echo "New project version: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          echo "::set-output name=VERSION::$VERSION" # This sets the VERSION as step output
           git commit -am "Bump version to $VERSION"
           git tag "$VERSION"
           git push origin HEAD:main
           git push origin "$VERSION"
+        shell: bash
+
+      - name: Version Bump Summary
+        run: |
+          VERSION=${{ steps.bump_version.outputs.VERSION }}
+          echo "### 🚀 Version Bumped" >> $GITHUB_STEP_SUMMARY
+          echo "The project version has been increased to **$VERSION**." >> $GITHUB_STEP_SUMMARY
+          echo "This includes a new Git tag and commit for **$VERSION** which has been pushed to the repository." >> $GITHUB_STEP_SUMMARY
+          echo "Check out the [commit history](https://github.com/${{ github.repository }}/commits/main) to see the changes." >> $GITHUB_STEP_SUMMARY
         shell: bash
 
     outputs:
