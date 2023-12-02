@@ -28,7 +28,7 @@ jobs:
         run: |
           if [[ -z "${{ secrets.PAT }}" ]]; then
             echo "### ❌ PAT Error" >> $GITHUB_STEP_SUMMARY
-            echo "The `PAT` secret is not set, which is required for git operations." >> $GITHUB_STEP_SUMMARY
+            echo "The \`PAT\` secret is not set, which is required for git operations." >> $GITHUB_STEP_SUMMARY
             exit 1
           else
             echo "### ✅ PAT Found" >> $GITHUB_STEP_SUMMARY
@@ -67,7 +67,7 @@ jobs:
             else
               echo "Artifact $artifact_name is not available yet"
               if [ "$attempt_number" -eq "$max_attempts" ]; then
-                echo "### ❌ Artifact $artifact_name is not available after $max_attempts attempts"
+                echo "### ❌ Artifact $artifact_name is not available after $max_attempts attempts" >> $GITHUB_STEP_SUMMARY
                 exit 1
               fi
               attempt_number=$((attempt_number+1))
@@ -77,48 +77,47 @@ jobs:
           done
         shell: bash
 
-      - name: Read BUMP_TYPE from version file
-        id: read_version_file
+      - name: Read BUMP_TYPE from version file and set as output
+        id: read_bump_type
         run: |
           BUMP_TYPE=$(cat version.txt)
-          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_ENV
           echo "### 📄 Bump Type" >> $GITHUB_STEP_SUMMARY
           echo "The BUMP_TYPE set for this run is \`${BUMP_TYPE}\`." >> $GITHUB_STEP_SUMMARY
-          echo "::set-output name=BUMP_TYPE::$BUMP_TYPE"
+          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_ENV
+          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_OUTPUT
         shell: bash
+
     outputs:
-      BUMP_TYPE: ${{ steps.read_version_file.outputs.BUMP_TYPE }}
+      BUMP_TYPE: ${{ steps.read_bump_type.outputs.BUMP_TYPE }}
 
   bump-and-push-version:
     needs: download-artifact
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out code with token
+        uses: actions/checkout@v2
         with:
           token: ${{ secrets.PAT }}
-      - name: Bump Version and commit
-        id: bump
+
+      - name: Bump Version, create tag and commit
+        id: bump_version
         run: |
-          npm version $BUMP_TYPE --no-git-tag-version
+          BUMP_TYPE=${{ needs.download-artifact.outputs.BUMP_TYPE }}
+          echo "Current BUMP_TYPE: $BUMP_TYPE"
+          npm version "$BUMP_TYPE"
           VERSION=$(node -p "require('./package.json').version")
+          echo "New project version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git commit -am "Bump version to $VERSION"
-          git tag $VERSION
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-
-          echo "### 🏷️ New Version" >> $GITHUB_STEP_SUMMARY
-          echo "The project version has been bumped to \`${VERSION}\`." >> $GITHUB_STEP_SUMMARY
+          git tag "$VERSION"
+          git push origin HEAD:main
+          git push origin "$VERSION"
         shell: bash
-      - name: Push changes and tag
-        run: |
-          git push origin main --follow-tags
 
-          echo "### 🚀 Pushed Changes" >> $GITHUB_STEP_SUMMARY
-          echo "The changes including the new tag \`${VERSION}\` have been pushed to the main branch." >> $GITHUB_STEP_SUMMARY
-        shell: bash
     outputs:
-      version: ${{ steps.bump.outputs.VERSION }}
+      VERSION: ${{ steps.bump_version.outputs.VERSION }}
 
   create-release:
     needs: bump-and-push-version
@@ -127,15 +126,13 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ needs.bump-and-push-version.outputs.version }}
-          name: Release ${{ needs.bump-and-push-version.outputs.version }}
-          draft: false
-          prerelease: false
+          tag_name: v${{ needs.bump-and-push-version.outputs.VERSION }}
+          name: Release v${{ needs.bump-and-push-version.outputs.VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
+
       - name: Release Summary
         run: |
           echo "### 🎉 New Release Created" >> $GITHUB_STEP_SUMMARY
-          echo "A new release version \`${{ needs.bump-and-push-version.outputs.version }}\` has been published!" >> $GITHUB_STEP_SUMMARY
-          echo "[View the new release](https://github.com/${{ github.repository }}/releases/tag/${{ needs.bump-and-push-version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-        shell: bash
+          echo "A new release version \`${{ needs.bump-and-push-version.outputs.VERSION }}\` has been published!" >> $GITHUB_STEP_SUMMARY
+          echo "[View the new release](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.bump-and-push-version.outputs.VERSION }})" >> $GITHUB_STEP_SUMMARY
