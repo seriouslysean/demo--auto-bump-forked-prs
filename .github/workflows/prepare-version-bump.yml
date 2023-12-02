@@ -1,0 +1,50 @@
+name: Prepare Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  check-merged:
+    runs-on: ubuntu-latest
+    outputs:
+      merged: ${{ steps.check.outputs.merged }}
+    steps:
+      - name: Check if PR is merged
+        id: check
+        run: |
+          if [[ "${{ github.event.pull_request.merged }}" != "true" ]]; then
+            echo "Pull request is not merged. Exiting."
+            echo "Outcome=Pull request is not merged." >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "merged=${{ github.event.pull_request.merged }}" >> $GITHUB_OUTPUT
+          echo "Outcome=Pull request is merged." >> $GITHUB_OUTPUT
+        shell: bash
+
+  get-labels:
+    needs: check-merged
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get labels
+        id: get
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+          VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
+          LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
+          if [[ "$LABELS_COUNT" -ne 1 ]]; then
+              echo "Exactly one version label is required. Exiting."
+              echo "Outcome=Exactly one version label is required." >> $GITHUB_OUTPUT
+              exit 1
+          fi
+          VERSION_TYPE=$(echo "$VERSION_LABELS" | sed 's/^version://')
+          echo "version=$VERSION_TYPE" > version.txt
+          echo "Outcome=Version label is valid. Version type: $VERSION_TYPE." >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Archive version
+        uses: actions/upload-artifact@v2
+        with:
+          name: version-${{ github.run_id }}
+          path: version.txt
