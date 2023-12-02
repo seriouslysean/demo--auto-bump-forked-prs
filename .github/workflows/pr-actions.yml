@@ -38,8 +38,9 @@ jobs:
         run: |
             LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}')
             VERSION_LABELS=$(echo "$LABELS" | grep -E '^version:(patch|minor|major)$' || true)
-            if [[ $(echo "$VERSION_LABELS" | wc -w) -ne 1 ]]; then
-                echo "Exactly one version label is required. Exiting."
+            LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -l)
+            if [[ "$LABELS_COUNT" -ne 1 ]]; then
+                echo "Exactly one version label is required. Found $LABELS_COUNT labels. Exiting."
                 exit 1
             fi
         shell: bash
