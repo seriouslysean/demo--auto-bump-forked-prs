@@ -39,7 +39,7 @@ jobs:
     needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for artifact to be available
+      - name: Wait and download version artifact
         run: |
           attempt_number=1
           max_attempts=10
@@ -53,12 +53,21 @@ jobs:
 
             if [ -n "$artifact_id" ]; then
               echo "Artifact $artifact_name with ID $artifact_id is available"
-              artifact_url="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip"
+              # If available, download the artifact
+              curl -L -o "version-artifact.zip" \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip"
+              unzip -j "version-artifact.zip" "version.txt" -d .
+              # Check if the version.txt was extracted successfully
+              if [[ ! -f "version.txt" ]]; then
+                echo "### ❌ Failed to extract version.txt" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
               break
             else
               echo "Artifact $artifact_name is not available yet"
               if [ "$attempt_number" -eq "$max_attempts" ]; then
-                echo "Artifact $artifact_name is not available after $max_attempts attempts"
+                echo "### ❌ Artifact $artifact_name is not available after $max_attempts attempts"
                 exit 1
               fi
               attempt_number=$((attempt_number+1))
@@ -68,27 +77,9 @@ jobs:
           done
         shell: bash
 
-      - name: Download version artifact
-        run: |
-          curl -L -o "version-artifact.zip" \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "$artifact_url"
-          unzip -j "version-artifact.zip" "version.txt" -d .
-          if [[ ! -f "version.txt" ]]; then
-            echo "### ❌ Artifact Download Failed" >> $GITHUB_STEP_SUMMARY
-            echo "Failed to download or find the version.txt within the artifact."
-            exit 1
-          fi
-        shell: bash
-
       - name: Read BUMP_TYPE from version file
         id: read_version_file
         run: |
-          if [[ ! -f version.txt ]]; then
-            echo "### ❌ Missing version.txt" >> $GITHUB_STEP_SUMMARY
-            echo "The file `version.txt` does not exist. Cannot proceed with version bumping." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
           BUMP_TYPE=$(cat version.txt)
           echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_ENV
           echo "### 📄 Bump Type" >> $GITHUB_STEP_SUMMARY
