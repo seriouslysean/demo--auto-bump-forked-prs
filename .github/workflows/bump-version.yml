@@ -1,0 +1,115 @@
+name: Bump Version
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  check-token:
+    runs-on: ubuntu-latest
+    outputs:
+      hasToken: ${{ steps.check.outputs.hasToken }}
+    steps:
+      - name: Check PAT
+        id: check
+        # https://github.blog/2022-05-09-supercharging-github-actions-with-job-summaries/
+        run: |
+          if [[ -z "${{ secrets.PAT }}" ]]; then
+            echo "PAT is not set." >> $GITHUB_STEP_SUMMARY
+            echo "This workflow requires the PAT secret to push commits and create releases. Please add the secret to your repository." >> $GITHUB_STEP_SUMMARY
+            echo "hasToken=false" >> $GITHUB_OUTPUT
+          else
+            echo "PAT is set." >> $GITHUB_STEP_SUMMARY
+            echo "hasToken=true" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+  check-merged:
+    needs: check-token
+    if: needs.check-token.outputs.hasToken == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      merged: ${{ steps.check.outputs.merged }}
+    steps:
+      - name: Check if PR is merged
+        id: check
+        run: |
+          if [[ "${{ github.event.pull_request.merged }}" != "true" ]]; then
+            echo "Pull request is not merged. Exiting."
+            exit 1
+          fi
+          echo "merged=${{ github.event.pull_request.merged }}" >> $GITHUB_OUTPUT
+        shell: bash
+
+  get-labels:
+    needs: [check-token, check-merged]
+    if: needs.check-token.outputs.hasToken == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get.outputs.version }}
+    steps:
+      - name: Get labels
+        id: get
+        run: |
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+          VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
+          LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
+          if [[ "$LABELS_COUNT" -ne 1 ]]; then
+              echo "Exactly one version label is required. Exiting."
+              exit 1
+          fi
+          echo "version=$(echo "$VERSION_LABELS" | sed 's/^version-//')" >> $GITHUB_OUTPUT
+        shell: bash
+
+  bump-and-push-version:
+    needs: [check-token, get-labels]
+    if: needs.check-token.outputs.hasToken == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Bump Version
+        id: bump
+        run: |
+          npm version ${{ needs.get-labels.outputs.version }} --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git commit -am "Bump version to $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Push changes
+        run: |
+          git push origin main
+          git tag v$VERSION
+          git push origin v$VERSION
+        env:
+          PAT: ${{ secrets.PAT }}
+
+  create-release:
+    needs: [check-token, bump-and-push-version]
+    if: needs.check-token.outputs.hasToken == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.bump-and-push-version.outputs.version }}
+          name: ${{ needs.bump-and-push-version.outputs.version }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}

@@ -41,7 +41,7 @@ jobs:
             VERSION_LABELS=$(echo $LABELS | tr ' ' '\n' | grep -E '^version:(patch|minor|major)$' || true)
             LABELS_COUNT=$(echo "$VERSION_LABELS" | wc -w)
             if [[ "$LABELS_COUNT" -ne 1 ]]; then
-                echo "Exactly one version label is required. Found $LABELS_COUNT labels. Exiting."
+                echo "Exactly one version label is required. Exiting."
                 exit 1
             fi
         shell: bash
