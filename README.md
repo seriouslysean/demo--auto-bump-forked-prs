@@ -8,7 +8,9 @@ In many projects I've worked on, managing versions has been a little tricky, bot
 
 There has been challenges with each method; what if some of the PRs are dependent on others, or what if the order of merges changes -- then you need to change the version in your PR and it ends up being a huge hassle, not to mention if a new commit removes any pre-existing approvals on the PR.
 
-The purpose of this repo was to figure out how to auto bump a repo's version from a forked PR merge event to the `main` branch. The challenge is due to the fact that forks do not have access to secrets for security reasons.
+The purpose of this repo was to figure out how to auto bump a repo's version from a forked PR merge event to the protected `main` branch. Because `main` is protected workflows can't push to `main` after bumping the unless they have the privilege of bypassing branch controls. One approach that is sometimes suggested to enable this behavior is to create a [Personal Access Token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) with rights to bypass branch controls and share it as a secret in the GitHub org/repo so that workflow files can pull the PAT in and use it to authenticate with GitHub, thereby acquiring the privilege of overriding branch protections.
+
+This level of access introduces security concerns because anyone with the rights to push code that triggers these workflows can in principle rewrite the workflow code to push to any branch. Additionally, it does not enable the version bump to be triggered by merges into `main` that come from forked repos. The challenge is due to the fact that forks do not have access to secrets for security reasons i.e. allowing this would enable anyone to fork your repo and rewrite your workflow files to perform destructive behaviors using your exposed PAT.
 
 ## The Solution
 
