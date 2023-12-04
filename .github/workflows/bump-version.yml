@@ -39,6 +39,8 @@ jobs:
     needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
     steps:
+      # No need to retry this logic, the previous workflow will fail if
+      # the artifact isn't uploaded
       - name: Download version artifact
         uses: actions/github-script@v7
         env:
