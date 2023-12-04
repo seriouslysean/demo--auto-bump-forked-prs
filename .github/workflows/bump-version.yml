@@ -35,53 +35,47 @@ jobs:
           fi
         shell: bash
 
-  # Based on the method of downloading artifacts outlined on GitHub Security Lab
-  # https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
   download-artifact:
     needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifact
-        uses: actions/github-script@v3.1.0
-        with:
-          script: |
-            const artifacts = await github.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: github.event.workflow_run.id,
-            });
-            const matchArtifact = artifacts.data.artifacts.find((artifact) =>
-              artifact.name === `version-${github.event.workflow_run.id}`
-            );
-            const download = await github.actions.downloadArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: matchArtifact.id,
-                archive_format: 'zip',
-            });
-            const fs = require('fs');
-            fs.writeFileSync('./version-artifact.zip', Buffer.from(download.data));
-      - run: unzip ./version-artifact.zip
-
-      - name: Check if version.txt was extracted successfully
+      - name: Wait and download version artifact
         run: |
-          if [[ ! -f "version.txt" ]]; then
-            echo "### ❌ Failed to extract version.txt" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-        shell: bash
+          attempt_number=1
+          max_attempts=10
+          artifact_name="version-${{ github.event.workflow_run.id }}"
+          while [ "$attempt_number" -le "$max_attempts" ]; do
+            echo "Attempt $attempt_number of $max_attempts"
+            response=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts")
+            artifact_id=$(echo "$response" | jq --arg artifact_name "$artifact_name" '.artifacts[] | select(.name==$artifact_name) | .id')
 
-      - name: Read BUMP_TYPE from version file and set as output
-        id: read_bump_type
-        run: |
-          BUMP_TYPE=$(cat version.txt)
-          echo "### 📄 Bump Type" >> $GITHUB_STEP_SUMMARY
-          echo "The BUMP_TYPE set for this run is \`${BUMP_TYPE}\`." >> $GITHUB_STEP_SUMMARY
-          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_OUTPUT
+            if [ -n "$artifact_id" ]; then
+              echo "Artifact $artifact_name with ID $artifact_id is available"
+              # If available, download the artifact
+              curl -L -o "version-artifact.zip" \
+                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip"
+              unzip -j "version-artifact.zip" "version.txt" -d .
+              # Check if the version.txt was extracted successfully
+              if [[ ! -f "version.txt" ]]; then
+                echo "### ❌ Failed to extract version.txt" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
+              break
+            else
+              echo "Artifact $artifact_name is not available yet"
+              if [ "$attempt_number" -eq "$max_attempts" ]; then
+                echo "### ❌ Artifact $artifact_name is not available after $max_attempts attempts" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
+              attempt_number=$((attempt_number+1))
+              echo "Waiting before retrying..."
+              sleep 10
+            fi
+          done
         shell: bash
-
-    outputs:
-      BUMP_TYPE: ${{ steps.read_bump_type.outputs.BUMP_TYPE }}
 
   bump-and-push-version:
     needs: download-artifact
@@ -100,7 +94,7 @@ jobs:
       - name: Bump Version, create tag and commit
         id: bump_version
         run: |
-          BUMP_TYPE=${{ needs.download-artifact.outputs.BUMP_TYPE }}
+          BUMP_TYPE=$(cat version.txt)
           echo "Current BUMP_TYPE: $BUMP_TYPE"
           npm version "$BUMP_TYPE" --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
