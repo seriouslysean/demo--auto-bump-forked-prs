@@ -41,17 +41,19 @@ jobs:
     steps:
       - name: Wait and download version artifact
         uses: actions/github-script@v5.1.0
+        env:
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
         with:
           script: |
             let attempt_number = 1;
             const max_attempts = 10;
-            const artifact_name = `version-${github.event.workflow_run.id}`;
+            const artifact_name = `version-${process.env.WORKFLOW_RUN_ID}`;
             while (attempt_number <= max_attempts) {
               console.log(`Attempt ${attempt_number} of ${max_attempts}`);
               const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                run_id: github.event.workflow_run.id,
+                run_id: process.env.WORKFLOW_RUN_ID,
               });
               const matchArtifact = artifacts.data.artifacts.find((artifact) =>
                 artifact.name === artifact_name
