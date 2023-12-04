@@ -35,45 +35,44 @@ jobs:
           fi
         shell: bash
 
+  # Based on the method of downloading artifacts outlined on GitHub Security Lab
+  # https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
   download-artifact:
     needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: Download version artifact
+      - name: Download artifact
         uses: actions/github-script@v3.1.0
         with:
           script: |
             const artifacts = await github.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: github.run_id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: github.event.workflow_run.id,
             });
-
-            const matchArtifact = artifacts.data.artifacts.find(artifact => artifact.name === "version-${{ github.run_id }}");
-
-            if (!matchArtifact) {
-              core.setFailed(`Artifact version-${{ github.run_id }} not found.`);
-            }
-
+            const matchArtifact = artifacts.data.artifacts.find((artifact) =>
+              artifact.name === `version-${github.event.workflow_run.id}`
+            );
             const download = await github.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: matchArtifact.id,
-              archive_format: 'zip',
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: matchArtifact.id,
+                archive_format: 'zip',
             });
-
             const fs = require('fs');
-            fs.writeFileSync('version-artifact.zip', Buffer.from(download.data));
+            fs.writeFileSync('./version-artifact.zip', Buffer.from(download.data));
+      - run: unzip ./version-artifact.zip
 
-            // Unzip the artifact
-            require('child_process').execSync('unzip -j version-artifact.zip version.txt -d .');
-
-            // Check if version.txt was extracted successfully
-            if (!fs.existsSync('version.txt')) {
-              core.setFailed('Failed to extract version.txt from the artifact.');
-            }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check if version.txt was extracted successfully
+        run: |
+          if [[ ! -f "version.txt" ]]; then
+            echo "### ❌ Failed to extract version.txt" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        shell: bash
 
       - name: Read BUMP_TYPE from version file and set as output
         id: read_bump_type
@@ -81,7 +80,6 @@ jobs:
           BUMP_TYPE=$(cat version.txt)
           echo "### 📄 Bump Type" >> $GITHUB_STEP_SUMMARY
           echo "The BUMP_TYPE set for this run is \`${BUMP_TYPE}\`." >> $GITHUB_STEP_SUMMARY
-          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_ENV
           echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_OUTPUT
         shell: bash
 
@@ -109,7 +107,7 @@ jobs:
           echo "Current BUMP_TYPE: $BUMP_TYPE"
           npm version "$BUMP_TYPE" --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
-          echo "::set-output name=VERSION::$VERSION" # This sets the VERSION as step output
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           git commit -am "Bump version to $VERSION"
           git tag "$VERSION"
           git push origin HEAD:main
