@@ -31,6 +31,11 @@ jobs:
     outputs:
       version_type: ${{ steps.get.outputs.version_type }}
     steps:
+      # This step requires that the repo has 3 types of version bump labels. Make any adjustments as
+      # needed to ensure that this step accurately parses the bump type.
+      #     - version:patch
+      #     - version:minor
+      #     - version:major
       - name: Get labels
         id: get
         run: |
