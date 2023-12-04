@@ -77,6 +77,18 @@ jobs:
           done
         shell: bash
 
+      - name: Read BUMP_TYPE from version file and set as output
+        id: read_bump_type
+        run: |
+          BUMP_TYPE=$(cat version.txt)
+          echo "### 📄 Bump Type" >> $GITHUB_STEP_SUMMARY
+          echo "The BUMP_TYPE set for this run is \`${BUMP_TYPE}\`." >> $GITHUB_STEP_SUMMARY
+          echo "BUMP_TYPE=${BUMP_TYPE}" >> $GITHUB_OUTPUT
+        shell: bash
+
+    outputs:
+      BUMP_TYPE: ${{ steps.read_bump_type.outputs.BUMP_TYPE }}
+
   bump-and-push-version:
     needs: download-artifact
     runs-on: ubuntu-latest
@@ -94,7 +106,7 @@ jobs:
       - name: Bump Version, create tag and commit
         id: bump_version
         run: |
-          BUMP_TYPE=$(cat version.txt)
+          BUMP_TYPE=${{ needs.download-artifact.outputs.BUMP_TYPE }}
           echo "Current BUMP_TYPE: $BUMP_TYPE"
           npm version "$BUMP_TYPE" --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
