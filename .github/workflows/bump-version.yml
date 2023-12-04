@@ -35,6 +35,8 @@ jobs:
           fi
         shell: bash
 
+  # Based on the method of downloading artifacts outlined on GitHub Security Lab
+  # https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
   download-artifact:
     needs: [check-previous-workflow, check-token]
     runs-on: ubuntu-latest
