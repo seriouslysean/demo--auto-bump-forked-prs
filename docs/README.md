@@ -76,3 +76,10 @@ I've [successfully implemented this method on an open-source project](https://gi
 In the end, I've learned a lot about GitHub actions, solved a problem that I previously thought was not able to be solved, and made the contributor experience in Cuttle much better for the effort, so I consider that a resounding win.
 
 Enjoy!
+
+-----
+
+## Links
+
+- [GitHub Discussion](https://github.com/orgs/community/discussions/25305#discussioncomment-7768235)
+- [LinkedIn Article on Approach](https://www.linkedin.com/pulse/automating-version-bumps-using-github-actions-sean-kennedy-3redf%3FtrackingId=CrBB6hpMRvmwLK8mi8tJ2g%253D%253D/?trackingId=CrBB6hpMRvmwLK8mi8tJ2g%3D%3D)
