@@ -2,7 +2,7 @@
 
 # Automating Version Bumps using GitHub Actions
 
-![Half closed macbook pro with an orange, blue and pink wavy background and the keyboard reflecting on the screen. Photo by Eliezer Pujols on Unsplash.](./half-closed-laptop.jpg)
+<img src="./half-closed-laptop.jpg" alt="Half closed macbook pro with an orange, blue and pink wavy background and the keyboard reflecting on the screen. Photo by Eliezer Pujols on Unsplash." style="max-width: 100%;">
 
 ## The Problem
 
